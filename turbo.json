@@ -15,6 +15,10 @@
     "test": {
       "dependsOn": [],
       "outputs": []
+    },
+    "test:coverage": {
+      "dependsOn": [],
+      "outputs": ["coverage/**"]
     }
   }
 }

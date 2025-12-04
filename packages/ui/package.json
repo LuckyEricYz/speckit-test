@@ -12,7 +12,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" --config ./node_modules/@repo/eslint-config/index.js",
     "type-check": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "autoprefixer": "^10.4.19",

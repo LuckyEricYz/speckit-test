@@ -9,21 +9,17 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v3
         with:
-          version: 8.15.4
+          version: "8.15.4"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -37,13 +33,23 @@ jobs:
       - name: Build web app
         run: pnpm turbo run build --filter=web
 
+      - name: Generate coverage
+        run: pnpm turbo run test:coverage
+
+      - name: Prepare staging site
+        run: |
+          rm -rf site_staging
+          mkdir -p site_staging/coverage
+          cp -R apps/web/dist/. site_staging/
+          cp -R packages/ui/coverage/. site_staging/coverage/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/web/dist
+          path: site_staging
 
   deploy:
-    needs: build
+    needs: build-and-test
     runs-on: ubuntu-latest
     environment:
       name: github-pages

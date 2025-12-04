@@ -42,3 +42,50 @@ jobs:
 
       - name: Run Turbo pipeline
         run: pnpm turbo run build test lint
+
+      - name: Run coverage suite
+        run: pnpm turbo run test:coverage
+
+      - name: Collect coverage artifacts
+        if: always()
+        run: |
+          rm -rf coverage-artifacts
+          mkdir -p coverage-artifacts
+          find . -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
+            | while IFS= read -r -d '' dir; do
+                rel=${dir#./}
+                mkdir -p "coverage-artifacts/${rel}"
+                cp -R "$dir/." "coverage-artifacts/${rel}/"
+              done
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage-artifacts
+
+      - name: Coverage summary
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          summaries=$(find coverage-artifacts -name coverage-summary.json || true)
+          if [ -z "$summaries" ]; then
+            echo "No coverage reports found." >> $GITHUB_STEP_SUMMARY
+          else
+            for summary in $summaries; do
+              pkg=$(echo "$summary" | sed -E 's|^coverage-artifacts/||; s|/coverage/coverage-summary\.json$||')
+              node "$summary" "$pkg" >> $GITHUB_STEP_SUMMARY <<'NODE'
+const fs = require('node:fs');
+const [,, file, pkg] = process.argv;
+const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+const totals = data.total;
+const fmt = (metric) => metric ? `${metric.pct?.toFixed(2) ?? 0}%` : '0%';
+console.log(`\n### ${pkg}`);
+console.log(`- Lines: ${fmt(totals.lines)}`);
+console.log(`- Statements: ${fmt(totals.statements)}`);
+console.log(`- Branches: ${fmt(totals.branches)}`);
+console.log(`- Functions: ${fmt(totals.functions)}`);
+NODE
+            done
+          fi

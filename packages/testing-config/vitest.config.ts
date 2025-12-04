@@ -9,6 +9,12 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: [path.resolve(__dirname, "setup.ts")],
-    include: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
+    include: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      reportsDirectory: "./coverage"
+    }
   }
 });
