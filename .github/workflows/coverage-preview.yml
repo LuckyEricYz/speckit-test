@@ -49,25 +49,25 @@ jobs:
               done
           reports=$(find coverage_preview -path "*/coverage/index.html" | sort)
           cat <<'HTML' > coverage_preview/index.html
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <title>Coverage Preview</title>
-              <style>
-                body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; line-height: 1.5; }
-                h1 { margin-bottom: 1rem; }
-                ul { padding-left: 1.5rem; }
-                li { margin-bottom: 0.5rem; }
-                a { color: #2563eb; text-decoration: none; }
-                a:hover { text-decoration: underline; }
-              </style>
-            </head>
-            <body>
-              <h1>Coverage Reports</h1>
-              <p>Select a package to view its HTML coverage report.</p>
-              <ul>
-          HTML
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Coverage Preview</title>
+    <style>
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; line-height: 1.5; }
+      h1 { margin-bottom: 1rem; }
+      ul { padding-left: 1.5rem; }
+      li { margin-bottom: 0.5rem; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <h1>Coverage Reports</h1>
+    <p>Select a package to view its HTML coverage report.</p>
+    <ul>
+HTML
           if [ -z "$reports" ]; then
             echo "      <li>No coverage reports generated.</li>" >> coverage_preview/index.html
           else
@@ -78,13 +78,25 @@ jobs:
             done <<< "$reports"
           fi
           cat <<'HTML' >> coverage_preview/index.html
-              </ul>
-            </body>
-          </html>
-          HTML
+    </ul>
+  </body>
+</html>
+HTML
 
       - name: Coverage summary
         run: |
+          cat <<'NODE' > coverage-preview-summary.mjs
+import fs from "node:fs";
+const [,, file, pkg] = process.argv;
+const data = JSON.parse(fs.readFileSync(file, "utf8"));
+const totals = data.total || {};
+const fmt = (metric) => metric && typeof metric.pct === "number" ? `${metric.pct.toFixed(2)}%` : "0%";
+console.log(`\n### ${pkg}`);
+console.log(`- Lines: ${fmt(totals.lines)}`);
+console.log(`- Statements: ${fmt(totals.statements)}`);
+console.log(`- Branches: ${fmt(totals.branches)}`);
+console.log(`- Functions: ${fmt(totals.functions)}`);
+NODE
           summaries=$(find coverage_preview -name coverage-summary.json || true)
           echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
           if [ -z "$summaries" ]; then
@@ -94,18 +106,7 @@ jobs:
               [ -z "$summary" ] && continue
               pkg=${summary#coverage_preview/}
               pkg=${pkg%/coverage/coverage-summary.json}
-              node "$summary" "$pkg" <<'NODE' >> "$GITHUB_STEP_SUMMARY"
-const fs = require('node:fs');
-const [,, file, pkg] = process.argv;
-const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-const totals = data.total || {};
-const fmt = (metric) => metric && typeof metric.pct === 'number' ? `${metric.pct.toFixed(2)}%` : '0%';
-console.log(`\n### ${pkg}`);
-console.log(`- Lines: ${fmt(totals.lines)}`);
-console.log(`- Statements: ${fmt(totals.statements)}`);
-console.log(`- Branches: ${fmt(totals.branches)}`);
-console.log(`- Functions: ${fmt(totals.functions)}`);
-NODE
+              node coverage-preview-summary.mjs "$summary" "$pkg" >> "$GITHUB_STEP_SUMMARY"
             done <<< "$summaries"
           fi
 
