@@ -48,26 +48,26 @@ jobs:
                 cp -R "$dir/." "coverage_preview/${rel}/"
               done
           reports=$(find coverage_preview -path "*/coverage/index.html" | sort)
-          cat <<'HTML' > coverage_preview/index.html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>Coverage Preview</title>
-    <style>
-      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; line-height: 1.5; }
-      h1 { margin-bottom: 1rem; }
-      ul { padding-left: 1.5rem; }
-      li { margin-bottom: 0.5rem; }
-      a { color: #2563eb; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-    </style>
-  </head>
-  <body>
-    <h1>Coverage Reports</h1>
-    <p>Select a package to view its HTML coverage report.</p>
-    <ul>
-HTML
+          cat <<'EOF' > coverage_preview/index.html
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <title>Coverage Preview</title>
+              <style>
+                body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; line-height: 1.5; }
+                h1 { margin-bottom: 1rem; }
+                ul { padding-left: 1.5rem; }
+                li { margin-bottom: 0.5rem; }
+                a { color: #2563eb; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+              </style>
+            </head>
+            <body>
+              <h1>Coverage Reports</h1>
+              <p>Select a package to view its HTML coverage report.</p>
+              <ul>
+          EOF
           if [ -z "$reports" ]; then
             echo "      <li>No coverage reports generated.</li>" >> coverage_preview/index.html
           else
@@ -77,26 +77,26 @@ HTML
               echo "      <li><a href=\"${pkg}/coverage/index.html\">${pkg}</a></li>" >> coverage_preview/index.html
             done <<< "$reports"
           fi
-          cat <<'HTML' >> coverage_preview/index.html
-    </ul>
-  </body>
-</html>
-HTML
+          cat <<'EOF' >> coverage_preview/index.html
+              </ul>
+            </body>
+          </html>
+          EOF
 
       - name: Coverage summary
         run: |
-          cat <<'NODE' > coverage-preview-summary.mjs
-import fs from "node:fs";
-const [,, file, pkg] = process.argv;
-const data = JSON.parse(fs.readFileSync(file, "utf8"));
-const totals = data.total || {};
-const fmt = (metric) => metric && typeof metric.pct === "number" ? `${metric.pct.toFixed(2)}%` : "0%";
-console.log(`\n### ${pkg}`);
-console.log(`- Lines: ${fmt(totals.lines)}`);
-console.log(`- Statements: ${fmt(totals.statements)}`);
-console.log(`- Branches: ${fmt(totals.branches)}`);
-console.log(`- Functions: ${fmt(totals.functions)}`);
-NODE
+          cat <<'EOF' > coverage-preview-summary.mjs
+          import fs from "node:fs";
+          const [,, file, pkg] = process.argv;
+          const data = JSON.parse(fs.readFileSync(file, "utf8"));
+          const totals = data.total || {};
+          const fmt = (metric) => metric && typeof metric.pct === "number" ? `${metric.pct.toFixed(2)}%` : "0%";
+          console.log(`\n### ${pkg}`);
+          console.log(`- Lines: ${fmt(totals.lines)}`);
+          console.log(`- Statements: ${fmt(totals.statements)}`);
+          console.log(`- Branches: ${fmt(totals.branches)}`);
+          console.log(`- Functions: ${fmt(totals.functions)}`);
+          EOF
           summaries=$(find coverage_preview -name coverage-summary.json || true)
           echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
           if [ -z "$summaries" ]; then
