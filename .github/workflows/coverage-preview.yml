@@ -94,7 +94,7 @@ jobs:
               [ -z "$summary" ] && continue
               pkg=${summary#coverage_preview/}
               pkg=${pkg%/coverage/coverage-summary.json}
-              node "$summary" "$pkg" >> $GITHUB_STEP_SUMMARY <<'NODE'
+              node "$summary" "$pkg" <<'NODE' >> "$GITHUB_STEP_SUMMARY"
 const fs = require('node:fs');
 const [,, file, pkg] = process.argv;
 const data = JSON.parse(fs.readFileSync(file, 'utf8'));
