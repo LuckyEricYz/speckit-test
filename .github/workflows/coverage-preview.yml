@@ -42,13 +42,13 @@ jobs:
           rm -rf coverage_preview
           mkdir -p coverage_preview
           find packages -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
-            | while IFS= read -r -d  dir; do
+            | while IFS= read -r -d '' dir; do
                 rel=${dir#packages/}
                 mkdir -p "coverage_preview/${rel}"
                 cp -R "$dir/." "coverage_preview/${rel}/"
               done
           reports=$(find coverage_preview -path "*/coverage/index.html" | sort)
-          cat <<'EOF' > coverage_preview/index.html
+          cat <<'HTML' > coverage_preview/index.html
           <!doctype html>
           <html lang="en">
             <head>
@@ -67,7 +67,7 @@ jobs:
               <h1>Coverage Reports</h1>
               <p>Select a package to view its HTML coverage report.</p>
               <ul>
-          EOF
+          HTML
           if [ -z "$reports" ]; then
             echo "      <li>No coverage reports generated.</li>" >> coverage_preview/index.html
           else
@@ -77,38 +77,11 @@ jobs:
               echo "      <li><a href=\"${pkg}/coverage/index.html\">${pkg}</a></li>" >> coverage_preview/index.html
             done <<< "$reports"
           fi
-          cat <<'EOF' >> coverage_preview/index.html
+          cat <<'HTML' >> coverage_preview/index.html
               </ul>
             </body>
           </html>
-          EOF
-
-      - name: Coverage summary
-        run: |
-          cat <<'EOF' > coverage-preview-summary.mjs
-          import fs from "node:fs";
-          const [,, file, pkg] = process.argv;
-          const data = JSON.parse(fs.readFileSync(file, "utf8"));
-          const totals = data.total || {};
-          const fmt = (metric) => metric && typeof metric.pct === "number" ? `${metric.pct.toFixed(2)}%` : "0%";
-          console.log(`\n### ${pkg}`);
-          console.log(`- Lines: ${fmt(totals.lines)}`);
-          console.log(`- Statements: ${fmt(totals.statements)}`);
-          console.log(`- Branches: ${fmt(totals.branches)}`);
-          console.log(`- Functions: ${fmt(totals.functions)}`);
-          EOF
-          summaries=$(find coverage_preview -name coverage-summary.json || true)
-          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          if [ -z "$summaries" ]; then
-            echo "No coverage reports generated." >> $GITHUB_STEP_SUMMARY
-          else
-            while read -r summary; do
-              [ -z "$summary" ] && continue
-              pkg=${summary#coverage_preview/}
-              pkg=${pkg%/coverage/coverage-summary.json}
-              node coverage-preview-summary.mjs "$summary" "$pkg" >> "$GITHUB_STEP_SUMMARY"
-            done <<< "$summaries"
-          fi
+          HTML
 
       - name: Upload coverage preview
         uses: actions/upload-pages-artifact@v3
