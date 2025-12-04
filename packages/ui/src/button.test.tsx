@@ -7,4 +7,11 @@ describe("Button", () => {
 
     expect(screen.getByRole("button")).toHaveTextContent("Click me");
   });
+
+  it("applies the secondary variant styles", () => {
+    render(<Button variant="secondary">Variant</Button>);
+
+    const button = screen.getByRole("button");
+    expect(button).toHaveClass("border-brand");
+  });
 });

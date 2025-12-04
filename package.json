@@ -8,9 +8,11 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "test:watch": "turbo run test:watch --parallel"
+    "test:watch": "turbo run test:watch --parallel",
+    "test:coverage": "turbo run test:coverage"
   },
   "devDependencies": {
-    "turbo": "^2.0.4"
+    "turbo": "^2.0.4",
+    "@vitest/coverage-v8": "^1.6.0"
   }
 }
