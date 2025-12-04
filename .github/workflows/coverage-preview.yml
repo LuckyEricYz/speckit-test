@@ -42,13 +42,13 @@ jobs:
           rm -rf coverage_preview
           mkdir -p coverage_preview
           find packages -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
-            | while IFS= read -r -d '' dir; do
+            | while IFS= read -r -d  dir; do
                 rel=${dir#packages/}
                 mkdir -p "coverage_preview/${rel}"
                 cp -R "$dir/." "coverage_preview/${rel}/"
               done
           reports=$(find coverage_preview -path "*/coverage/index.html" | sort)
-          cat <<'HTML' > coverage_preview/index.html
+          cat <<HTML > coverage_preview/index.html
 <!doctype html>
 <html lang="en">
   <head>
@@ -77,7 +77,7 @@ HTML
               echo "      <li><a href=\"${pkg}/coverage/index.html\">${pkg}</a></li>" >> coverage_preview/index.html
             done <<< "$reports"
           fi
-          cat <<'HTML' >> coverage_preview/index.html
+          cat <<HTML >> coverage_preview/index.html
     </ul>
   </body>
 </html>
@@ -85,7 +85,7 @@ HTML
 
       - name: Coverage summary
         run: |
-          cat <<'NODE' > coverage-preview-summary.mjs
+          cat <<NODE > coverage-preview-summary.mjs
 import fs from "node:fs";
 const [,, file, pkg] = process.argv;
 const data = JSON.parse(fs.readFileSync(file, "utf8"));
