@@ -1,0 +1,67 @@
+name: Coverage Preview
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: "8.15.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate coverage
+        run: pnpm turbo run test:coverage
+
+      - name: Prepare coverage site
+        run: |
+          rm -rf coverage_preview
+          mkdir -p coverage_preview
+          find packages -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
+            | while IFS= read -r -d  dir; do
+                rel=${dir#packages/}
+                mkdir -p "coverage_preview/${rel}"
+                cp -R "$dir/." "coverage_preview/${rel}/"
+              done
+
+      - name: Upload coverage preview
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: coverage_preview
+
+  deploy:
+    needs: coverage
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          preview: true
