@@ -56,6 +56,55 @@ jobs:
           summaries=$(find coverage_preview -path "*/coverage/coverage-summary.json" | sort)
           REPORTS="$reports" SUMMARIES="$summaries" node .github/scripts/generate-coverage-preview.js
 
+      - name: Build coverage comment
+        id: coverage_comment
+        run: |
+          node .github/scripts/coverage-comment.js > coverage_preview/comment.md
+          echo "body<<'EOF'" >> "$GITHUB_OUTPUT"
+          cat coverage_preview/comment.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert PR coverage comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_BODY: ${{ steps.coverage_comment.outputs.body }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = Number(process.env.PR_NUMBER);
+            const marker = "<!-- coverage-preview -->";
+            const body = process.env.COMMENT_BODY || "";
+            const fullBody = `${marker}\n${body}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              per_page: 100
+            });
+
+            const existing = comments.find(
+              (c) => c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body: fullBody
+              });
+            }
+
       - name: Upload coverage preview
         uses: actions/upload-pages-artifact@v3
         with:
