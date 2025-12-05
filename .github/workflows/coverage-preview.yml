@@ -8,6 +8,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: coverage-${{ github.ref }}
@@ -39,80 +41,32 @@ jobs:
 
       - name: Prepare coverage site
         run: |
+          set -euo pipefail
           rm -rf coverage_preview
           mkdir -p coverage_preview
-          find packages -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
-            | while IFS= read -r -d  dir; do
-                rel=${dir#packages/}
-                mkdir -p "coverage_preview/${rel}"
-                cp -R "$dir/." "coverage_preview/${rel}/"
-              done
+          for root in packages apps; do
+            [ -d "$root" ] || continue
+            find "$root" -type d -path "*/coverage" -not -path "*/node_modules/*" -print0 \
+              | while IFS= read -r -d '' dir; do
+                  rel=${dir#${root}/}
+                  dest="coverage_preview/${root}/${rel}"
+                  mkdir -p "$dest"
+                  cp -R "$dir/." "$dest/"
+                done
+          done
           reports=$(find coverage_preview -path "*/coverage/index.html" | sort)
-          cat <<'EOF' > coverage_preview/index.html
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <title>Coverage Preview</title>
-              <style>
-                body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; line-height: 1.5; }
-                h1 { margin-bottom: 1rem; }
-                ul { padding-left: 1.5rem; }
-                li { margin-bottom: 0.5rem; }
-                a { color: #2563eb; text-decoration: none; }
-                a:hover { text-decoration: underline; }
-              </style>
-            </head>
-            <body>
-              <h1>Coverage Reports</h1>
-              <p>Select a package to view its HTML coverage report.</p>
-              <ul>
-          EOF
-          if [ -z "$reports" ]; then
-            echo "      <li>No coverage reports generated.</li>" >> coverage_preview/index.html
-          else
-            while read -r report; do
-              pkg=${report#coverage_preview/}
-              pkg=${pkg%/coverage/index.html}
-              echo "      <li><a href=\"${pkg}/coverage/index.html\">${pkg}</a></li>" >> coverage_preview/index.html
-            done <<< "$reports"
-          fi
-          cat <<'EOF' >> coverage_preview/index.html
-              </ul>
-            </body>
-          </html>
-          EOF
-
-      - name: Coverage summary
-        run: |
-          cat <<'EOF' > coverage-preview-summary.mjs
-          import fs from "node:fs";
-          const [,, file, pkg] = process.argv;
-          const data = JSON.parse(fs.readFileSync(file, "utf8"));
-          const totals = data.total || {};
-          const fmt = (metric) => metric && typeof metric.pct === "number" ? `${metric.pct.toFixed(2)}%` : "0%";
-          console.log(`\n### ${pkg}`);
-          console.log(`- Lines: ${fmt(totals.lines)}`);
-          console.log(`- Statements: ${fmt(totals.statements)}`);
-          console.log(`- Branches: ${fmt(totals.branches)}`);
-          console.log(`- Functions: ${fmt(totals.functions)}`);
-          EOF
-          summaries=$(find coverage_preview -name coverage-summary.json || true)
-          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          if [ -z "$summaries" ]; then
-            echo "No coverage reports generated." >> $GITHUB_STEP_SUMMARY
-          else
-            while read -r summary; do
-              [ -z "$summary" ] && continue
-              pkg=${summary#coverage_preview/}
-              pkg=${pkg%/coverage/coverage-summary.json}
-              node coverage-preview-summary.mjs "$summary" "$pkg" >> "$GITHUB_STEP_SUMMARY"
-            done <<< "$summaries"
-          fi
+          summaries=$(find coverage_preview -path "*/coverage/coverage-summary.json" | sort)
+          REPORTS="$reports" SUMMARIES="$summaries" node .github/scripts/generate-coverage-preview.js
 
       - name: Upload coverage preview
         uses: actions/upload-pages-artifact@v3
         with:
+          path: coverage_preview
+
+      - name: Upload coverage data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-preview
           path: coverage_preview
 
   deploy:
@@ -122,8 +76,71 @@ jobs:
       name: preview
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-preview
+          path: coverage_preview
+
       - name: Deploy preview
         id: deployment
         uses: actions/deploy-pages@v4
         with:
           preview: true
+
+      - name: Build coverage comment
+        id: coverage_comment
+        env:
+          BASE_URL: ${{ steps.deployment.outputs.page_url }}
+          FALLBACK_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          node .github/scripts/coverage-comment.js > coverage_preview/comment.md
+          {
+            echo "body<<EOF"
+            cat coverage_preview/comment.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert PR coverage comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_BODY: ${{ steps.coverage_comment.outputs.body }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = Number(process.env.PR_NUMBER);
+            const marker = "<!-- coverage-preview -->";
+            const body = process.env.COMMENT_BODY || "";
+            const fullBody = `${marker}\n${body}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              per_page: 100
+            });
+
+            const existing = comments.find(
+              (c) => c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body: fullBody
+              });
+            }
