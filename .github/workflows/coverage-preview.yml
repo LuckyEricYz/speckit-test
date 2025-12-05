@@ -58,8 +58,41 @@ jobs:
           summaries=$(find coverage_preview -path "*/coverage/coverage-summary.json" | sort)
           REPORTS="$reports" SUMMARIES="$summaries" node .github/scripts/generate-coverage-preview.js
 
+      - name: Upload coverage preview
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: coverage_preview
+
+      - name: Upload coverage data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-preview
+          path: coverage_preview
+
+  deploy:
+    needs: coverage
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-preview
+          path: coverage_preview
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          preview: true
+
       - name: Build coverage comment
         id: coverage_comment
+        env:
+          BASE_URL: ${{ steps.deployment.outputs.page_url }}
+          FALLBACK_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           node .github/scripts/coverage-comment.js > coverage_preview/comment.md
           {
@@ -108,21 +141,3 @@ jobs:
                 body: fullBody
               });
             }
-
-      - name: Upload coverage preview
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: coverage_preview
-
-  deploy:
-    needs: coverage
-    runs-on: ubuntu-latest
-    environment:
-      name: preview
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy preview
-        id: deployment
-        uses: actions/deploy-pages@v4
-        with:
-          preview: true

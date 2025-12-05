@@ -2,6 +2,10 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.join(process.cwd(), "coverage_preview");
+const baseUrl =
+  process.env.BASE_URL?.replace(/\/+$/, "") ||
+  process.env.FALLBACK_URL?.replace(/\/+$/, "") ||
+  ".";
 const metrics = ["statements", "branches", "functions", "lines"];
 const labels = {
   statements: "Statements",
@@ -104,12 +108,15 @@ const reportLinks =
           const pkg = report
             .replace(/^coverage_preview\//, "")
             .replace(/\/coverage\/index\.html$/, "");
-          return `- [${pkg}](./${pkg}/coverage/index.html)`;
+          const urlBase = baseUrl === "." ? "." : `${baseUrl}`;
+          return `- [${pkg}](${urlBase}/${pkg}/coverage/index.html)`;
         })
         .join("\n")
     : "- No HTML coverage reports generated.";
 
 const body = `## Coverage Preview
+
+Preview site: ${baseUrl}
 
 Repository coverage (aggregated):
 ${summarizeTotals()}
