@@ -15,7 +15,6 @@ const labels = {
 };
 
 const summaries = [];
-const reports = [];
 
 const walk = (dir) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -24,9 +23,6 @@ const walk = (dir) => {
       walk(full);
     } else if (entry.isFile()) {
       if (entry.name === "coverage-summary.json") summaries.push(full);
-      if (entry.name === "index.html" && full.endsWith("coverage/index.html")) {
-        reports.push(full);
-      }
     }
   }
 };
@@ -101,19 +97,6 @@ const packageTableRows = rows
   })
   .join("\n");
 
-const reportLinks =
-  reports.length > 0
-    ? reports
-        .map((report) => {
-          const pkg = report
-            .replace(/^coverage_preview\//, "")
-            .replace(/\/coverage\/index\.html$/, "");
-          const urlBase = baseUrl === "." ? "." : `${baseUrl}`;
-          return `- [${pkg}](${urlBase}/${pkg}/coverage/index.html)`;
-        })
-        .join("\n")
-    : "- No HTML coverage reports generated.";
-
 const body = `## Coverage Preview
 
 Preview site: ${baseUrl}
@@ -124,9 +107,6 @@ ${summarizeTotals()}
 Package coverage:
 ${packageTableHeader}
 ${packageTableRows}
-
-HTML reports:
-${reportLinks}
 `;
 
 console.log(body);
